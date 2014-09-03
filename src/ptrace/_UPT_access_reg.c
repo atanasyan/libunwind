@@ -245,7 +245,32 @@ _UPT_access_reg (unw_addr_space_t as, unw_regnum_t reg, unw_word_t *val,
     Debug(16, "ptrace PEEKUSER pid: %lu , reg: %lu , offs: %lu\n", (unsigned long)pid, (unsigned long)reg,
         (unsigned long)_UPT_reg_offset[reg]);
 #endif
+#if defined(__mips__)
+  {
+    struct
+    {
+      uint64_t regs[32];
+      uint64_t lo;
+      uint64_t hi;
+      uint64_t epc;
+      uint64_t badvaddr;
+      uint64_t status;
+      uint64_t cause;
+    }
+    regs;
+
+  if (ptrace(PTRACE_GETREGS, pid, 0, (void*)&regs) == -1)
+    goto badreg;
+  if (reg <= UNW_MIPS_R31)
+    *val = regs.regs[reg];
+  else if (reg == UNW_MIPS_PC)
+    *val = regs.epc;
+  else
+    goto badreg;
+  }
+#else
     *val = ptrace (PTRACE_PEEKUSER, pid, _UPT_reg_offset[reg], 0);
+#endif
   }
   if (errno) {
 #if UNW_DEBUG
@@ -275,8 +300,22 @@ _UPT_access_reg (unw_addr_space_t as, unw_regnum_t reg, unw_word_t *val,
 {
   struct UPT_info *ui = arg;
   pid_t pid = ui->pid;
+#if defined(__mips__)
+    struct
+    {
+      uint64_t regs[32];
+      uint64_t lo;
+      uint64_t hi;
+      uint64_t epc;
+      uint64_t badvaddr;
+      uint64_t status;
+      uint64_t cause;
+    }
+    regs;
+#else
   gregset_t regs;
   char *r;
+#endif
 
 #if UNW_DEBUG
   Debug(16, "using getregs: reg: %s [%u], val: %lx, write: %u\n", unw_regname(reg), (unsigned) reg, (long) val, write);
@@ -284,6 +323,30 @@ _UPT_access_reg (unw_addr_space_t as, unw_regnum_t reg, unw_word_t *val,
   if (write)
     Debug (16, "%s [%u] <- %lx\n", unw_regname (reg), (unsigned) reg, (long) *val);
 #endif
+#if defined(__mips__)
+  if (ptrace(PTRACE_GETREGS, pid, 0, (void*)&regs) == -1)
+    goto badreg;
+  if (write)
+    {
+      if (reg <= UNW_MIPS_R31)
+        regs.regs[reg] = *val;
+      else if (reg == UNW_MIPS_PC)
+        regs.epc = *val;
+      else
+        goto badreg;
+      if (ptrace(PTRACE_SETREGS, pid, 0, (void*)&regs) == -1)
+        goto badreg;
+    }
+  else
+    {
+      if (reg <= UNW_MIPS_R31)
+        *val = regs.regs[reg];
+      else if (reg == UNW_MIPS_PC)
+        *val = regs.epc;
+      else
+        goto badreg;
+    }
+#else
   if ((unsigned) reg >= ARRAY_SIZE (_UPT_reg_offset))
     {
       errno = EINVAL;
@@ -298,6 +361,7 @@ _UPT_access_reg (unw_addr_space_t as, unw_regnum_t reg, unw_word_t *val,
         goto badreg;
   } else
       memcpy(val, r, sizeof(unw_word_t));
+#endif
   return 0;
 
  badreg:

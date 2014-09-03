@@ -85,6 +85,8 @@ _UPT_access_fpreg (unw_addr_space_t as, unw_regnum_t reg, unw_fpreg_t *val,
           memcpy(&fpreg.fpr_xacc[reg], val, sizeof(unw_fpreg_t));
 #elif defined(__i386__)
           memcpy(&fpreg.fpr_acc[reg], val, sizeof(unw_fpreg_t));
+#elif defined(__mips__)
+    return -UNW_EBADREG;
 #else
 #error Fix me
 #endif
@@ -95,6 +97,8 @@ _UPT_access_fpreg (unw_addr_space_t as, unw_regnum_t reg, unw_fpreg_t *val,
           memcpy(val, &fpreg.fpr_xacc[reg], sizeof(unw_fpreg_t));
 #elif defined(__i386__)
           memcpy(val, &fpreg.fpr_acc[reg], sizeof(unw_fpreg_t));
+#elif defined(__mips__)
+    return -UNW_EBADREG;
 #else
 #error Fix me
 #endif

@@ -533,7 +533,9 @@ const int _UPT_reg_offset[UNW_REG_LAST + 1] =
     [UNW_MIPS_R31] = EF_REG31 - EF_REG0,
     /* A magic PC constant from the arch/mips/include/uapi/asm/ptrace.h */
     /* FIXME (simon): The constant might depends on ABI. */
-    [UNW_MIPS_PC]  = 64,
+    //[UNW_MIPS_PC]  = 64,
+    [UNW_MIPS_PC]  = 34 * 8,
+    //[UNW_MIPS_PC]  = 68,
 #elif defined(UNW_TARGET_SH)
 #elif defined(UNW_TARGET_AARCH64)
     [UNW_AARCH64_X0]       = 0x00,
