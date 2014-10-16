@@ -145,7 +145,7 @@ dwarf_readu8 (unw_addr_space_t as, unw_accessors_t *a, unw_word_t *addr,
 #if __BYTE_ORDER == __LITTLE_ENDIAN
   val >>= 8*off;
 #else
-  val >>= 8*(dwarf_addr_size (as) - 1 - off);
+  val >>= 8*(sizeof (unw_word_t) - 1 - off);
 #endif
   *valp = (uint8_t) val;
   return ret;
