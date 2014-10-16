@@ -148,18 +148,17 @@ dwarf_put (struct dwarf_cursor *c, dwarf_loc_t loc, unw_word_t val)
 static inline int
 read_s32 (struct dwarf_cursor *c, unw_word_t addr, unw_word_t *val)
 {
-  int offset = addr & 4;
   int ret;
   unw_word_t memval;
 
-  ret = (*c->as->acc.access_mem) (c->as, addr - offset, &memval, 0, c->as_arg);
+  ret = (*c->as->acc.access_mem) (c->as, addr, &memval, 0, c->as_arg);
   if (ret < 0)
     return ret;
 
-//  if ((offset != 0) == tdep_big_endian (c->as))
-    *val = (int32_t) memval;
-//  else
-//    *val = (int32_t) (memval >> 32);
+  if (tdep_big_endian (c->as))
+    *val = memval;
+  else
+    *val = memval & 0xffffffffLL;
 
   return 0;
 }
@@ -245,8 +244,8 @@ dwarf_get (struct dwarf_cursor *c, dwarf_loc_t loc, unw_word_t *val)
   if (DWARF_IS_REG_LOC (loc))
     return (*c->as->acc.access_reg) (c->as, DWARF_GET_LOC (loc), val,
 				                             0, c->as_arg);
-//  else if (c->as->abi == UNW_MIPS_ABI_O32)
-//    return read_s32 (c, DWARF_GET_LOC (loc), val);
+  else if (c->as->abi == UNW_MIPS_ABI_O32)
+    return read_s32 (c, DWARF_GET_LOC (loc), val);
   else
     return (*c->as->acc.access_mem) (c->as, DWARF_GET_LOC (loc), val,
                                      0, c->as_arg);

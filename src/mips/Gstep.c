@@ -36,10 +36,10 @@ find_sp_restore(struct cursor *c, unw_word_t pc)
     if ((ret = dwarf_get (&c->dwarf, DWARF_LOC (pc, 0), &op)) < 0)
       return ret;
     /* find move sp, s8 instruction */
-    if ((op & 0xffffffff) == 0x3a0f021)
+    if (op == 0x3a0f021)
       return 1;
     /* find jr $ra */
-    if ((op & 0xffffffff) == 0x3e00008)
+    if (op == 0x3e00008)
       break;
   }
 
@@ -92,12 +92,14 @@ mips_heuristic_step (struct cursor *c)
     if ((ret = dwarf_get (&c->dwarf, DWARF_LOC (pc, 0), &op)) < 0)
       return ret;
 
+    op &= 0xffffffff;
+
     /* subu sp, sp, reg */
     if ((op & 0xffe0ffff) == 0x03a0e823)
       Debug (2, "XXX at 0x%016x\n", pc);
 
     /* move ra, zero */
-    if ((op & 0xffffffff) == 0x0000f821) {
+    if (op == 0x0000f821) {
       Debug (2, "'move ra, zero' stop condition at 0x%016x\n", pc);
       return 0;
     }
@@ -114,7 +116,7 @@ mips_heuristic_step (struct cursor *c)
 
     /* move s8, sp */
     /* FIXME (simon): Check that we have found fp already! */
-    if ((op & 0xffffffff) == 0x3a0f021) {
+    if (op == 0x3a0f021) {
       Debug (2, "sp saved to the s8 at 0x%016x\n", pc);
       if ((ret = find_sp_restore(c, c->dwarf.ip)) < 0)
         return ret;
@@ -158,7 +160,7 @@ mips_heuristic_step (struct cursor *c)
         break;
     }
 
-    if ((op & 0xffffffff) == 0x3e00008) {
+    if (op == 0x3e00008) {
       found = 1;
       Debug (2, "'jr ra' upper function boundary at 0x%016x\n", pc);
     }
@@ -236,10 +238,6 @@ mips_heuristic_step (struct cursor *c)
     c->dwarf.loc[UNW_MIPS_R31] = ip_loc;
   if (!DWARF_IS_NULL_LOC(fp_loc))
     c->dwarf.loc[UNW_MIPS_R30] = fp_loc;
-
-  /* FIXME (simon): What about 64-bit arch? */
-  ra &= 0xffffffff;
-  sp &= 0xffffffff;
 
   /* FIXME (simon): Adjust ip on four or eight(?) bytes */
   c->dwarf.cfa = sp;
@@ -326,10 +324,7 @@ unw_handle_signal_frame (unw_cursor_t *cursor)
     return ret;
 
   Debug (2, "SH (ip=0x%016llx, ra=0x%016llx, sp=0x%016llx, fp=0x%016llx)\n",
-         c->dwarf.ip & 0xffffffff,
-         ra & 0xffffffff,
-         c->dwarf.cfa & 0xffffffff,
-         fp & 0xffffffff);
+         c->dwarf.ip, ra, c->dwarf.cfa, fp);
 
   c->dwarf.pi_valid = 0;
   c->dwarf.use_prev_instr = 0;
