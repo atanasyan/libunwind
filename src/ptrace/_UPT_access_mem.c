@@ -54,7 +54,7 @@ _UPT_access_mem (unw_addr_space_t as, unw_word_t addr, unw_word_t *val,
 #ifdef HAVE_TTRACE
 #       warning No support for ttrace() yet.
 #else
-      *val = ptrace (PTRACE_PEEKDATA, pid, addr, 0);
+      *val = ptrace (PTRACE_PEEKDATA, pid, (intptr_t) addr, 0);
       if (errno)
         return -UNW_EINVAL;
 #endif
