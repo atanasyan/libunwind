@@ -276,6 +276,9 @@ unw_handle_signal_frame (unw_cursor_t *cursor)
     return -UNW_EUNSPEC;
   }
 
+  if (tdep_big_endian(c->dwarf.as))
+    sc_addr += 4;
+
   c->sigcontext_addr = sc_addr;
 
   /* Update the dwarf cursor. */
