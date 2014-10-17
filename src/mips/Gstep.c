@@ -343,9 +343,13 @@ unw_step (unw_cursor_t *cursor)
 
   Debug (1, "(cursor=%p)\n", c);
 
-  if (unw_is_signal_frame (cursor))
+  ret = unw_is_signal_frame (cursor);
+  if (ret < 0)
+    return ret;
+  if (ret > 0) {
     if ((ret = unw_handle_signal_frame (cursor)) < 0)
       return ret;
+  }
 
   /* First, try DWARF-based unwinding. */
   ret = dwarf_step (&c->dwarf);
