@@ -19,6 +19,32 @@
 # define LINUX_UC_MCONTEXT_PC   0x20
 # define LINUX_UC_MCONTEXT_GREGS        0x28
 
+#elif _MIPS_SIM == _ABIN32
+
+# define LINUX_UC_FLAGS_OFF     0x0
+# define LINUX_UC_LINK_OFF      0x4
+# define LINUX_UC_STACK_OFF     0x8
+# define LINUX_UC_MCONTEXT_OFF  0x18
+# define LINUX_UC_SIGMASK_OFF   0x270
+# define LINUX_UC_MCONTEXT_PC   0x258
+# define LINUX_UC_MCONTEXT_GREGS        0x18
+
+#elif _MIPS_SIM == _ABI64
+
+# define LINUX_UC_FLAGS_OFF     0x0
+# define LINUX_UC_LINK_OFF      0x8
+# define LINUX_UC_STACK_OFF     0x10
+# define LINUX_UC_MCONTEXT_OFF  0x28
+# define LINUX_UC_SIGMASK_OFF   0x280
+# define LINUX_UC_MCONTEXT_PC   0x268
+# define LINUX_UC_MCONTEXT_GREGS        0x28
+
+#else
+
+#error Unsupported ABI
+
+#endif
+
 #define LINUX_SC_SP_OFF   LINUX_SC_R29_OFF
 #define LINUX_SC_PC_OFF   LINUX_UC_MCONTEXT_PC
 
@@ -54,25 +80,3 @@
 #define LINUX_SC_R29_OFF  (LINUX_SC_R0_OFF + 29*8)
 #define LINUX_SC_R30_OFF  (LINUX_SC_R0_OFF + 30*8)
 #define LINUX_SC_R31_OFF  (LINUX_SC_R0_OFF + 31*8)
-
-#elif _MIPS_SIM == _ABIN32
-
-# define LINUX_UC_FLAGS_OFF     0x0
-# define LINUX_UC_LINK_OFF      0x4
-# define LINUX_UC_STACK_OFF     0x8
-# define LINUX_UC_MCONTEXT_OFF  0x18
-# define LINUX_UC_SIGMASK_OFF   0x270
-# define LINUX_UC_MCONTEXT_PC   0x258
-# define LINUX_UC_MCONTEXT_GREGS        0x18
-
-#elif _MIPS_SIM == _ABI64
-
-# define LINUX_UC_FLAGS_OFF     0x0
-# define LINUX_UC_LINK_OFF      0x8
-# define LINUX_UC_STACK_OFF     0x10
-# define LINUX_UC_MCONTEXT_OFF  0x28
-# define LINUX_UC_SIGMASK_OFF   0x280
-# define LINUX_UC_MCONTEXT_PC   0x268
-# define LINUX_UC_MCONTEXT_GREGS        0x28
-
-#endif
