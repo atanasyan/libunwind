@@ -58,7 +58,7 @@ mips_heuristic_step (struct cursor *c)
   int32_t stack_size_after_ra = 0;
   int32_t ra_offset = 0;
   int32_t fp_offset = 0;
-  uint32_t pc;
+  unw_word_t pc;
   int use_fp = 0;
   unw_word_t ra, sp, fp = 0;
   unw_word_t old_ip, old_sp, old_fp;
@@ -92,20 +92,16 @@ mips_heuristic_step (struct cursor *c)
     if ((ret = dwarf_get (&c->dwarf, DWARF_LOC (pc, 0), &op)) < 0)
       return ret;
 
-    /* subu sp, sp, reg */
-    if ((op & 0xffe0ffff) == 0x03a0e823)
-      Debug (2, "XXX at 0x%016x\n", pc);
-
     /* move ra, zero */
     if (op == 0x0000f821) {
-      Debug (2, "'move ra, zero' stop condition at 0x%016x\n", pc);
+      Debug (2, "'move ra, zero' stop condition at 0x%016llx\n", pc);
       return 0;
     }
 
     /* check frame0 */
     if ((op & frame0sig[f0].mask) == frame0sig[f0].insn) {
       if (f0 == 0) {
-        Debug (2, "'frame0' stop condition at 0x%016x\n", pc);
+        Debug (2, "'frame0' stop condition at 0x%016llx\n", pc);
         return 0;
       }
       --f0;
@@ -115,7 +111,7 @@ mips_heuristic_step (struct cursor *c)
     /* move s8, sp */
     /* FIXME (simon): Check that we have found fp already! */
     if (op == 0x3a0f021) {
-      Debug (2, "sp saved to the s8 at 0x%016x\n", pc);
+      Debug (2, "sp saved to the s8 at 0x%016llx\n", pc);
       if ((ret = find_sp_restore(c, c->dwarf.ip)) < 0)
         return ret;
       if (ret) {
@@ -135,7 +131,7 @@ mips_heuristic_step (struct cursor *c)
              The second one is stack pointer offset made after we
              save return address in the stack. */
           stack_size += -immediate;
-          Debug (2, "stack adjustment %d at 0x%016x\n", stack_size, pc);
+          Debug (2, "stack adjustment %d at 0x%016llx\n", stack_size, pc);
           if (ra_offset)
             stack_size_before_ra += -immediate;
           else
@@ -144,15 +140,15 @@ mips_heuristic_step (struct cursor *c)
         break;
       case 0xafbf0000: /* sw ra, imm(sp) */
         ra_offset = (((int32_t)op) << 16) >> 16;
-        Debug (2, "ra offset %d at 0x%016x\n", ra_offset, pc);
+        Debug (2, "ra offset %d at 0x%016llx\n", ra_offset, pc);
         break;
       case 0xafbe0000: /* sw s8, imm(sp) */
         fp_offset = (((int32_t)op) << 16) >> 16;
-        Debug (2, "fp offset %d at 0x%016x\n", fp_offset, pc);
+        Debug (2, "fp offset %d at 0x%016llx\n", fp_offset, pc);
         break;
       case 0x3c1c0000: /* lui gp */
         found = 1;
-        Debug (2, "'lui gp' upper function boundary at 0x%016x\n", pc);
+        Debug (2, "'lui gp' upper function boundary at 0x%016llx\n", pc);
         break;
       default:
         break;
@@ -160,7 +156,7 @@ mips_heuristic_step (struct cursor *c)
 
     if (op == 0x3e00008) {
       found = 1;
-      Debug (2, "'jr ra' upper function boundary at 0x%016x\n", pc);
+      Debug (2, "'jr ra' upper function boundary at 0x%016llx\n", pc);
     }
   }
 
@@ -179,13 +175,13 @@ mips_heuristic_step (struct cursor *c)
       if (immediate < 0) {
         stack_size += -immediate;
         stack_size_before_ra += -immediate;
-        Debug (2, "stack adjustment %d at 0x%016x\n", stack_size, pc);
+        Debug (2, "stack adjustment %d at 0x%016llx\n", stack_size, pc);
       }
     }
   }
 
   if (!maxcheck) {
-    Debug (2, "stop prologue look up at 0x%016x\n", pc);
+    Debug (2, "stop prologue look up at 0x%016llx\n", pc);
     return -UNW_EBADFRAME;
   }
 
