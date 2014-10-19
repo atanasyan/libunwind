@@ -102,10 +102,12 @@ access_mem (unw_addr_space_t as, unw_word_t addr, unw_word_t *val, int write,
   else
     {
       *val = *(unw_word_t *) (intptr_t) addr;
-      if (tdep_big_endian(as))
-        *val >>= 32;
-      else
-        *val &= 0xffffffff;
+      if (as->abi == UNW_MIPS_ABI_O32) {
+        if (tdep_big_endian(as))
+          *val >>= 32;
+        else
+          *val &= 0xffffffff;
+      }
       Debug (16, "mem[%llx] -> %llx\n", (long long) addr, (long long) *val);
     }
   return 0;
