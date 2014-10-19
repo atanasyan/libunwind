@@ -79,7 +79,7 @@ struct cursor
 # if (_MIPS_SIM == _ABIN32) || (_MIPS_SIM == _ABI64)
 typedef uint64_t mips_reg_t;
 # else
-typedef unit32_t mips_reg_t;
+typedef uint32_t mips_reg_t;
 # endif
 #endif
 
