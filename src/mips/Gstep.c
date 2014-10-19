@@ -243,6 +243,136 @@ mips_heuristic_step (struct cursor *c)
   return (ra == 0 || (old_ip == ra && old_sp == sp)) ? 0 : 1;
 }
 
+static inline int
+mips_n64_heuristic_step (unw_cursor_t *cursor)
+{
+  struct cursor *c = (struct cursor *) cursor;
+  int ret;
+  char pname[32];
+  unw_word_t pstart;
+  unw_word_t pc;
+  int32_t stack_size = 0;
+  int32_t ra_offset = 0;
+  int32_t fp_offset = 0;
+  uint32_t sp_offset = 0;
+  int use_fp = 0;
+  int has_sub_v1 = 0;
+  unw_word_t ra = 0, sp = 0, fp = 0;
+  unw_word_t old_ip, old_sp, old_fp;
+  dwarf_loc_t ip_loc = DWARF_NULL_LOC;
+  dwarf_loc_t fp_loc = DWARF_NULL_LOC;
+
+  ret = unw_get_proc_name (cursor, pname, sizeof(pname), &pstart);
+  if (ret != 0)
+    return 0;
+
+  pstart = c->dwarf.ip - pstart;
+  Debug (2, "Function boundary %s at 0x%016llx\n", pname, pstart);
+
+  old_ip = c->dwarf.ip;
+  old_sp = c->dwarf.cfa;
+  if ((ret = dwarf_get (&c->dwarf, c->dwarf.loc[UNW_MIPS_R30], &old_fp)) < 0)
+    return ret;
+
+  Debug (2, "(ip=0x%016llx, sp=0x%016llx, fp=0x%016llx)\n", old_ip, old_sp, old_fp);
+
+  pc = c->dwarf.use_prev_instr ? c->dwarf.ip - 4 : c->dwarf.ip;
+
+  for (; pc >= pstart; pc -= 4) {
+    unw_word_t op;
+    int32_t immediate;
+    if ((ret = dwarf_get (&c->dwarf, DWARF_LOC (pc, 0), &op)) < 0)
+      return ret;
+
+    op &= 0xffffffff;
+
+    /* move s8, sp */
+    if (op == 0x3a0f02d) {
+      Debug (2, "sp saved to the s8 at 0x%016llx\n", pc);
+// FIXME (simon): Fix
+//      if ((ret = find_sp_restore(c, c->dwarf.ip)) < 0)
+//        return ret;
+//      if (ret) {
+        Debug (2, "treat s8 as fp register\n");
+        use_fp = 1;
+//      }
+    } else if (!use_fp)
+      continue;
+
+    switch (op & 0xffff0000) {
+      case 0x67bd0000: /* daddiu sp, imm */
+        immediate = (((int32_t)op) << 16) >> 16;
+        if (immediate < 0) {
+          Debug (2, "stack adjustment %d at 0x%016llx\n", -immediate, pc);
+          if (fp_offset)
+            stack_size += -immediate;
+          else
+            sp_offset += -immediate;
+        }
+        break;
+      case 0x34030000: /* li v1,imm */
+        if (has_sub_v1)
+          sp_offset += op & 0xffff;
+        break;
+      case 0xffbf0000: /* sd ra, imm(sp) */
+        ra_offset = (((int32_t)op) << 16) >> 16;
+        Debug (2, "ra offset %d at 0x%016llx\n", ra_offset, pc);
+        break;
+      case 0xffbe0000: /* sd s8, imm(sp) */
+        fp_offset = (((int32_t)op) << 16) >> 16;
+        Debug (2, "fp offset %d at 0x%016llx\n", fp_offset, pc);
+        break;
+      default:
+        break;
+    }
+
+    /* dsubu sp,sp,v1 */
+    if (op == 0x3a3e82f)
+      has_sub_v1 = 1;
+  }
+
+  if (use_fp) {
+    if ((ret = dwarf_get (&c->dwarf, c->dwarf.loc[UNW_MIPS_R30], &fp)) < 0)
+      return ret;
+
+    fp += sp_offset;
+    sp = fp + stack_size;
+
+    if (ra_offset) {
+      ip_loc = DWARF_LOC(fp + ra_offset, 0);
+      if ((ret = dwarf_get (&c->dwarf, ip_loc, &ra)) < 0)
+        return ret;
+    } else {
+      if ((ret = dwarf_get (&c->dwarf, c->dwarf.loc[UNW_MIPS_R31], &ra)) < 0)
+        return ret;
+    }
+    if (fp_offset) {
+      fp_loc = DWARF_LOC(fp + fp_offset, 0);
+      if ((ret = dwarf_get (&c->dwarf, fp_loc, &fp)) < 0)
+        return ret;
+    }
+  } else {
+    Debug (2, "Frame does not use FP\n");
+    return 0;
+  }
+
+  if (!DWARF_IS_NULL_LOC(ip_loc))
+    c->dwarf.loc[UNW_MIPS_R31] = ip_loc;
+  if (!DWARF_IS_NULL_LOC(fp_loc))
+    c->dwarf.loc[UNW_MIPS_R30] = fp_loc;
+
+  /* FIXME (simon): Adjust ip on four or eight(?) bytes */
+  c->dwarf.cfa = sp;
+  c->dwarf.ip = ra;
+  c->dwarf.pi_valid = 0;
+
+  Debug (2, "(ip=0x%016llx, sp=0x%016llx, fp=0x%016llx)\n", ra, sp, fp);
+
+  return (ra == 0 || (old_ip == ra && old_sp == sp)) ? 0 : 1;
+
+  return 0;
+}
+
 PROTECTED int
 unw_handle_signal_frame (unw_cursor_t *cursor)
 {
@@ -353,7 +483,15 @@ unw_step (unw_cursor_t *cursor)
 
   /* DWARF didn't work, try the heuristic approach. */
   if (unlikely (ret < 0))
-    return mips_heuristic_step (c);
+    switch (c->dwarf.as->abi)
+      {
+      case UNW_MIPS_ABI_O32:
+        return mips_heuristic_step (c);
+      case UNW_MIPS_ABI_N64:
+        return mips_n64_heuristic_step (cursor);
+      default:
+        return ret;
+      }
 
   return (c->dwarf.ip == 0) ? 0 : 1;
 }
