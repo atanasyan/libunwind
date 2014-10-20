@@ -255,6 +255,7 @@ mips_n64_heuristic_step (unw_cursor_t *cursor)
   int32_t ra_offset = 0;
   int32_t fp_offset = 0;
   uint32_t sp_offset = 0;
+  uint32_t v1_offset = 0;
   int use_fp = 0;
   int has_sub_v1 = 0;
   unw_word_t ra = 0, sp = 0, fp = 0;
@@ -286,6 +287,12 @@ mips_n64_heuristic_step (unw_cursor_t *cursor)
 
     op &= 0xffffffff;
 
+    /* move ra, zero */
+    if (op == 0x3e0002d) {
+      Debug (2, "'move ra, zero' stop condition at 0x%016llx\n", pc);
+      return 0;
+    }
+
     /* move s8, sp */
     if (op == 0x3a0f02d) {
       Debug (2, "sp saved to the s8 at 0x%016llx\n", pc);
@@ -296,23 +303,22 @@ mips_n64_heuristic_step (unw_cursor_t *cursor)
         Debug (2, "treat s8 as fp register\n");
         use_fp = 1;
 //      }
-    } else if (!use_fp)
-      continue;
+    }
 
     switch (op & 0xffff0000) {
       case 0x67bd0000: /* daddiu sp, imm */
         immediate = (((int32_t)op) << 16) >> 16;
         if (immediate < 0) {
           Debug (2, "stack adjustment %d at 0x%016llx\n", -immediate, pc);
-          if (fp_offset)
+          if (fp_offset || ra_offset)
             stack_size += -immediate;
-          else
+          else if (use_fp)
             sp_offset += -immediate;
         }
         break;
       case 0x34030000: /* li v1,imm */
         if (has_sub_v1)
-          sp_offset += op & 0xffff;
+          v1_offset = op & 0xffff;
         break;
       case 0xffbf0000: /* sd ra, imm(sp) */
         ra_offset = (((int32_t)op) << 16) >> 16;
@@ -335,7 +341,7 @@ mips_n64_heuristic_step (unw_cursor_t *cursor)
     if ((ret = dwarf_get (&c->dwarf, c->dwarf.loc[UNW_MIPS_R30], &fp)) < 0)
       return ret;
 
-    fp += sp_offset;
+    fp += sp_offset + v1_offset;
     sp = fp + stack_size;
 
     if (ra_offset) {
@@ -352,8 +358,18 @@ mips_n64_heuristic_step (unw_cursor_t *cursor)
         return ret;
     }
   } else {
-    Debug (2, "Frame does not use FP\n");
-    return 0;
+    sp = c->dwarf.cfa;
+
+    if (ra_offset) {
+      ip_loc = DWARF_LOC(sp + ra_offset, 0);
+      if ((ret = dwarf_get (&c->dwarf, ip_loc, &ra)) < 0)
+        return ret;
+    } else {
+      if ((ret = dwarf_get (&c->dwarf, c->dwarf.loc[UNW_MIPS_R31], &ra)) < 0)
+        return ret;
+    }
+
+    sp += stack_size;
   }
 
   if (!DWARF_IS_NULL_LOC(ip_loc))
@@ -465,7 +481,7 @@ unw_step (unw_cursor_t *cursor)
   struct cursor *c = (struct cursor *) cursor;
   int ret;
 
-  Debug (1, "(cursor=%p)\n", c);
+  Debug (1, "(cursor=%p, ip=0x%016llx)\n", c, c->dwarf.ip);
 
   ret = unw_is_signal_frame (cursor);
   if (ret < 0)
