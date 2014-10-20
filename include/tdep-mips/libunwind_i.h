@@ -76,10 +76,10 @@ struct cursor
 #define DWARF_GET_LOC(l)        ((l).val)
 
 #ifndef UNW_REMOTE_ONLY
-# if _MIPS_SIM == _ABIN32
-typedef long long mips_reg_t;
+# if (_MIPS_SIM == _ABIN32) || (_MIPS_SIM == _ABI64)
+typedef uint64_t mips_reg_t;
 # else
-typedef long mips_reg_t;
+typedef unit32_t mips_reg_t;
 # endif
 #endif
 
